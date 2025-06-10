@@ -1,6 +1,6 @@
 # quantum-hive
 
-# 🧠 Jarvis AI Assistant on Raspberry Pi
+# 🧠 Quantum Hive AI Assistant on Raspberry Pi
 
 A fully functional **Jarvis-like AI assistant** built using a **Raspberry Pi 4B (8GB)**, touch screen, mic, camera, and speaker. This assistant can **listen**, **think**, **respond**, and even **control smart home devices**—all while displaying an interactive 3D avatar interface with animations and face tracking.
 
