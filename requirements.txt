@@ -1,0 +1,25 @@
+# Core dependencies
+pyaudio>=0.2.11
+vosk>=0.3.45
+pyttsx3>=2.90
+llama-cpp-python>=0.2.11
+
+# Audio processing
+pygame>=2.5.0
+
+# Optional TTS engines
+# TTS>=0.22.0  # Uncomment for Coqui TTS
+
+# Development and testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+black>=23.0.0
+flake8>=6.0.0
+
+# Utilities
+requests>=2.31.0
+numpy>=1.24.0
+pathlib2>=2.3.7
+
+# For Raspberry Pi optimization
+# psutil>=5.9.0  # Uncomment for system monitoring 
