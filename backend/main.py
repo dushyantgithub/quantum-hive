@@ -9,10 +9,10 @@ import sys
 from pathlib import Path
 
 # Import our modules
-from stt.vosk_engine import VoskSTTEngine
-from tts.tts_engine import TTSEngine
-from ai.local_llm import get_ai_engine
-from utils.config import LOGGING_SETTINGS, STT_SETTINGS, TTS_SETTINGS, AI_SETTINGS
+from backend.stt.whisper_engine import WhisperSTTEngine
+from backend.tts.tts_engine import TTSEngine
+from backend.ai.local_llm import get_ai_engine
+from backend.utils.config import LOGGING_SETTINGS, STT_SETTINGS, TTS_SETTINGS, AI_SETTINGS
 
 # Configure logging
 logging.basicConfig(
@@ -51,7 +51,7 @@ class QuantumHive:
             
             # Initialize STT engine
             logger.info("Initializing STT engine...")
-            self.stt_engine = VoskSTTEngine()
+            self.stt_engine = WhisperSTTEngine(model_size=STT_SETTINGS["whisper_model"])
             
             # Initialize TTS engine
             logger.info("Initializing TTS engine...")
@@ -98,10 +98,13 @@ class QuantumHive:
                     user_input = self.stt_engine.listen_for_speech(timeout=STT_SETTINGS["timeout"])
                     
                     if user_input:
+                        # Display transcribed text in console with clear formatting
+                        print(f"\n🎤 **You said:** {user_input}")
                         logger.info(f"User said: {user_input}")
                         
                         # Check for exit commands
                         if self._is_exit_command(user_input):
+                            print(f"\n🛑 **Exit command detected:** {user_input}")
                             logger.info("Exit command detected")
                             break
                         
@@ -112,11 +115,14 @@ class QuantumHive:
                             system_prompt=self.system_prompt
                         )
                         
+                        print(f"🤖 **AI Response:** {ai_response}")
                         logger.info(f"AI response: {ai_response}")
                         
                         # Speak the response
                         logger.info("Speaking response...")
                         self.tts_engine.speak(ai_response)
+                        
+                        print(f"\n🎧 **Listening for speech...**")
                         
                     else:
                         logger.debug("No speech detected")

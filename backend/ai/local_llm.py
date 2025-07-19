@@ -162,7 +162,7 @@ class LocalLLMEngine:
 
 # Simple fallback AI for when local LLM is not available
 class SimpleAIEngine:
-    """Simple rule-based AI engine as fallback"""
+    """Enhanced rule-based AI engine with better responses"""
     
     def __init__(self):
         self.responses = {
@@ -173,37 +173,88 @@ class SimpleAIEngine:
             "weather": "I don't have access to weather information yet, but I'm learning new capabilities.",
             "help": "I'm here to help! You can ask me questions, have conversations, or request assistance with various tasks.",
             "goodbye": "Goodbye! Have a great day!",
-            "thanks": "You're welcome! Is there anything else I can help you with?"
+            "thanks": "You're welcome! Is there anything else I can help you with?",
+            "joke": "Why don't scientists trust atoms? Because they make up everything! 😄",
+            "name": "My name is Quantum Hive, your AI assistant. Nice to meet you!",
+            "who are you": "I'm Quantum Hive, an AI assistant designed to help you with various tasks and conversations.",
+            "what is your name": "My name is Quantum Hive. I'm here to assist you!",
+            "how does this work": "I listen to your voice, process what you say, and respond with helpful information or actions.",
+            "tell me about yourself": "I'm Quantum Hive, an AI assistant built to help you. I can understand speech, process requests, and respond with useful information.",
+            "capabilities": "I can understand speech, answer questions, have conversations, and I'm constantly learning new capabilities.",
+            "features": "My features include speech recognition, natural language processing, and voice responses. I'm designed to be helpful and conversational."
+        }
+        
+        # Contextual responses for better conversation flow
+        self.context_responses = {
+            "greeting": [
+                "Hello there! How can I assist you today?",
+                "Hi! I'm ready to help. What would you like to know?",
+                "Greetings! I'm Quantum Hive, your AI assistant. How can I be of service?"
+            ],
+            "confused": [
+                "I'm not quite sure I understood that. Could you rephrase your question?",
+                "I'm still learning and that's a bit beyond my current capabilities. Could you try asking something else?",
+                "I didn't catch that clearly. Could you say it differently?"
+            ],
+            "positive": [
+                "That's great to hear! Is there anything specific I can help you with?",
+                "Excellent! I'm glad I could be helpful. What else would you like to know?",
+                "Wonderful! I'm here whenever you need assistance."
+            ]
         }
     
+    def cleanup(self):
+        """Clean up resources (no-op for simple AI)"""
+        pass
+    
     def generate_response(self, prompt, system_prompt=None):
-        """Generate simple response based on keywords"""
+        """Generate enhanced response based on keywords and context"""
         prompt_lower = prompt.lower()
         
-        # Check for exact matches first
+        # Check for exit commands first
+        exit_commands = ["goodbye", "exit", "quit", "stop", "bye", "see you"]
+        for cmd in exit_commands:
+            if cmd in prompt_lower:
+                return "Goodbye! Have a great day!"
+        
+        # Check for exact matches
         for key, response in self.responses.items():
             if key in prompt_lower:
                 return response
         
-        # Check for partial matches
-        if "hello" in prompt_lower or "hi" in prompt_lower:
-            return self.responses["hello"]
-        elif "how are you" in prompt_lower:
-            return self.responses["how are you"]
-        elif "what can you do" in prompt_lower or "capabilities" in prompt_lower:
-            return self.responses["what can you do"]
-        elif "time" in prompt_lower:
-            return self.responses["time"]
-        elif "weather" in prompt_lower:
-            return self.responses["weather"]
-        elif "help" in prompt_lower:
-            return self.responses["help"]
-        elif "bye" in prompt_lower or "goodbye" in prompt_lower:
-            return self.responses["goodbye"]
-        elif "thank" in prompt_lower:
-            return self.responses["thanks"]
-        else:
-            return "I understand you said: '" + prompt + "'. I'm still learning and don't have a specific response for that yet. Could you try asking something else?"
+        # Check for greeting patterns
+        greeting_words = ["hello", "hi", "hey", "greetings", "good morning", "good afternoon", "good evening"]
+        if any(word in prompt_lower for word in greeting_words):
+            import random
+            return random.choice(self.context_responses["greeting"])
+        
+        # Check for positive sentiment
+        positive_words = ["good", "great", "excellent", "awesome", "amazing", "wonderful", "fantastic"]
+        if any(word in prompt_lower for word in positive_words):
+            import random
+            return random.choice(self.context_responses["positive"])
+        
+        # Check for questions about capabilities
+        capability_words = ["can you", "do you", "are you able", "what can", "how can"]
+        if any(phrase in prompt_lower for phrase in capability_words):
+            return "I can understand speech, answer questions, have conversations, and assist with various tasks. I'm constantly learning and improving!"
+        
+        # Check for questions about the system
+        system_words = ["how does", "how do you", "what is", "explain", "tell me about"]
+        if any(phrase in prompt_lower for phrase in system_words):
+            return "I'm an AI assistant that uses speech recognition to understand your voice, processes your requests, and responds with helpful information."
+        
+        # Check for joke requests
+        if "joke" in prompt_lower or "funny" in prompt_lower:
+            return self.responses["joke"]
+        
+        # Check for name/identity questions
+        if "name" in prompt_lower or "who are you" in prompt_lower:
+            return self.responses["name"]
+        
+        # Default response for unrecognized input
+        import random
+        return random.choice(self.context_responses["confused"])
 
 # Factory function to get the best available AI engine
 def get_ai_engine():

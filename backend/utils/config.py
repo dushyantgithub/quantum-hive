@@ -19,10 +19,14 @@ AUDIO_SETTINGS = {
 
 # Speech-to-Text settings
 STT_SETTINGS = {
-    "engine": "vosk",  # Options: "vosk", "whisper"
-    "model_path": str(MODELS_DIR / "vosk-model-small-en-us-0.15"),
+    "engine": "whisper",  # Options: "vosk", "whisper"
+    "model_path": str(MODELS_DIR / "vosk-model-small-en-us-0.15"),  # For Vosk
+    "whisper_model": "base",  # Options: "tiny", "base", "small", "medium", "large"
     "language": "en-us",
-    "timeout": 5.0
+    "timeout": 5.0,
+    "silence_threshold": 500,
+    "silence_duration": 1.0,
+    "min_audio_duration": 0.5
 }
 
 # Text-to-Speech settings
