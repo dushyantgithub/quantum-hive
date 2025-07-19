@@ -262,12 +262,13 @@ def get_ai_engine():
     Get the best available AI engine
     
     Returns:
-        LocalLLMEngine or SimpleAIEngine: Available AI engine
+        EnhancedAIEngine or SimpleAIEngine: Available AI engine
     """
     try:
-        return LocalLLMEngine()
+        from .enhanced_ai import EnhancedAIEngine
+        return EnhancedAIEngine()
     except Exception as e:
-        logger.warning(f"Local LLM not available: {e}")
+        logger.warning(f"Enhanced AI engine not available: {e}")
         logger.info("Falling back to simple AI engine")
         return SimpleAIEngine()
 
