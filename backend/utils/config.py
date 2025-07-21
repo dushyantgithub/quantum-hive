@@ -3,11 +3,15 @@ Configuration settings for Quantum Hive
 """
 import os
 from pathlib import Path
+import dotenv
 
 # Base paths
 BASE_DIR = Path(__file__).parent.parent.parent
 BACKEND_DIR = BASE_DIR / "backend"
 MODELS_DIR = BASE_DIR / "models"
+
+# Load .env file at project root
+dotenv.load_dotenv(dotenv.find_dotenv())
 
 # Audio settings
 AUDIO_SETTINGS = {
@@ -47,8 +51,13 @@ AI_SETTINGS = {
 # OpenAI settings (if using API)
 OPENAI_SETTINGS = {
     "api_key": os.getenv("OPENAI_API_KEY", ""),
-    "model": "gpt-3.5-turbo",
-    "max_tokens": 150
+    "model": os.getenv("OPENAI_MODEL", "gpt-3.5-turbo"),
+    "max_tokens": int(os.getenv("OPENAI_MAX_TOKENS", "150")),
+}
+
+# Hugging Face settings (if using Hugging Face Hub)
+HUGGINGFACE_SETTINGS = {
+    "token": os.getenv("HUGGINGFACE_TOKEN", ""),
 }
 
 # Local LLM settings
@@ -70,6 +79,13 @@ LOGGING_SETTINGS = {
     "level": "INFO",
     "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     "file": str(BASE_DIR / "logs" / "quantum_hive.log")
+}
+
+# Conversation memory settings
+MEMORY_SETTINGS = {
+    "history_file": str(BASE_DIR / "backend" / "utils" / "conversation_history.json"),
+    "min_days": 1,   # Minimum age to keep (in days)
+    "max_days": 7    # Maximum age to keep (in days)
 }
 
 # Create necessary directories

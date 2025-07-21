@@ -71,6 +71,7 @@ pip install -r requirements.txt
 ### 6. **Run the Assistant**
 
 ```sh
+source venv311/bin/activate
 python backend/main.py
 ```
 
@@ -159,6 +160,19 @@ MIT License
 - 2024-07: Updated requirements for Python 3.10/3.11 compatibility
 - 2024-07: Improved README for setup and troubleshooting
 
+## 🔑 Environment Variables & Credentials
+
+- Store all credentials, API keys, and tokens in a `.env` file at the project root.
+- Example `.env`:
+  ```
+  OPENAI_API_KEY=sk-...
+  HUGGINGFACE_TOKEN=hf_...
+  OTHER_SECRET=...
+  ```
+- The `.env` file is already included in `.gitignore` and will not be committed to GitHub.
+- The app loads environment variables automatically using `os.getenv` (see `backend/utils/config.py`).
+
 ```
 
 ```
+

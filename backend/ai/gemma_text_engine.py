@@ -88,10 +88,17 @@ class TinyLlamaTextAIEngine:
         conversation += f"<|user|> {user_input}\n<|assistant|>"
         return conversation
     
-    def generate_response(self, user_input, system_prompt=None, **generation_kwargs):
+    def generate_response(self, user_input, system_prompt=None, history=None, **generation_kwargs):
         try:
             start_time = time.time()
-            prompt = self._format_conversation(user_input, system_prompt)
+            # If history is provided, prepend it to the conversation
+            prompt = ""
+            if system_prompt:
+                prompt += f"<|system|> {system_prompt}\n"
+            if history:
+                for user, ai in history:
+                    prompt += f"<|user|> {user}\n<|assistant|> {ai}\n"
+            prompt += f"<|user|> {user_input}\n<|assistant|>"
             inputs = self.tokenizer(
                 prompt, 
                 return_tensors="pt", 

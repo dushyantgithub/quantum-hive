@@ -29,3 +29,4 @@ pathlib2>=2.3.7
 
 # For Raspberry Pi optimization
 # psutil>=5.9.0  # Uncomment for system monitoring 
+sentence-transformers>=2.2.2 
