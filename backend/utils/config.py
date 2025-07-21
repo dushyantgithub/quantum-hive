@@ -19,21 +19,20 @@ AUDIO_SETTINGS = {
 
 # Speech-to-Text settings
 STT_SETTINGS = {
-    "engine": "whisper",  # Options: "vosk", "whisper"
-    "model_path": str(MODELS_DIR / "vosk-model-small-en-us-0.15"),  # For Vosk
+    "engine": "whisper",  # Only Whisper is supported
     "whisper_model": "base",  # Options: "tiny", "base", "small", "medium", "large"
     "language": "en-us",
     "timeout": 5.0,
     "silence_threshold": 500,
-    "silence_duration": 1.0,
-    "min_audio_duration": 0.5
+    "silence_duration": 3.0,
+    "min_audio_duration": 3.0
 }
 
 # Text-to-Speech settings
 TTS_SETTINGS = {
-    "engine": "espeak",  # Options: "espeak", "coqui", "pyttsx3"
-    "voice": "en-us",
-    "rate": 150,
+    "engine": "coqui",  # Only Coqui TTS is supported
+    "voice": "tts_models/en/ljspeech/tacotron2-DDC",  # Lightweight English model
+    "rate": 16000,  # Lower sample rate for Pi
     "volume": 0.8
 }
 

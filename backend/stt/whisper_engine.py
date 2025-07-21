@@ -56,12 +56,13 @@ class WhisperSTTEngine:
             logger.error(f"Failed to load Whisper model: {e}")
             raise
     
-    def _record_audio(self, timeout=None):
+    def _record_audio(self, timeout=None, min_record_time=3.0):
         """
         Record audio from microphone
         
         Args:
             timeout (float): Maximum recording time in seconds
+            min_record_time (float): Minimum recording time in seconds (default: 3.0)
             
         Returns:
             bytes: Audio data
@@ -79,7 +80,7 @@ class WhisperSTTEngine:
             frames = []
             silent_chunks = 0
             silent_threshold = int(self.silence_duration * self.sample_rate / self.chunk_size)
-            min_chunks = int(self.min_audio_duration * self.sample_rate / self.chunk_size)
+            min_chunks = int(max(self.min_audio_duration, min_record_time) * self.sample_rate / self.chunk_size)
             
             logger.info("Listening for speech...")
             
@@ -105,9 +106,11 @@ class WhisperSTTEngine:
                 else:
                     silent_chunks = 0
                 
+                elapsed_time = time.time() - start_time
+                
                 # Stop if silence detected and minimum duration met
                 if silent_chunks >= silent_threshold and len(frames) >= min_chunks:
-                    logger.info("Silence detected, stopping recording")
+                    logger.info(f"Silence detected after {elapsed_time:.1f}s, stopping recording")
                     break
             
             # Close stream
@@ -187,19 +190,20 @@ class WhisperSTTEngine:
             except:
                 pass
     
-    def listen_for_speech(self, timeout=None):
+    def listen_for_speech(self, timeout=None, min_record_time=3.0):
         """
         Listen for speech and return transcribed text
         
         Args:
             timeout (float): Maximum listening time in seconds
+            min_record_time (float): Minimum recording time in seconds (default: 3.0)
             
         Returns:
             str: Transcribed text or None if no speech detected
         """
         try:
             # Record audio
-            audio_data = self._record_audio(timeout)
+            audio_data = self._record_audio(timeout, min_record_time)
             
             if not audio_data:
                 return None
@@ -259,6 +263,12 @@ class WhisperSTTEngine:
 
 if __name__ == "__main__":
     # Test the Whisper STT engine
+    import sys
+    from pathlib import Path
+    
+    # Add parent directory to path for imports
+    sys.path.append(str(Path(__file__).parent.parent.parent))
+    
     logging.basicConfig(level=logging.INFO)
     print("Testing Whisper STT Engine...")
     
@@ -268,7 +278,7 @@ if __name__ == "__main__":
     try:
         print("Speak something (press Ctrl+C to stop)...")
         while True:
-            text = stt_engine.listen_for_speech(timeout=10)
+            text = stt_engine.listen_for_speech(timeout=30, min_record_time=3.0)
             if text:
                 print(f"You said: {text}")
             else:

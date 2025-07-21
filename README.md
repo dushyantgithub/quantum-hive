@@ -1,210 +1,164 @@
 # 🧠 Quantum Hive
 
-**Quantum Hive** is an offline-capable, Jarvis-like AI assistant built on a Raspberry Pi 4 (8GB). It uses local speech-to-text and text-to-speech systems, processes natural language using either local or API-based LLMs, and responds with a speaking avatar UI.
+**Quantum Hive** is an offline-capable, Jarvis-like AI assistant built for Raspberry Pi 4 (8GB) and desktop. It uses local speech-to-text (Whisper), TinyLlama for AI, and Coqui TTS for voice responses.
 
 ---
 
 ## 🚀 Features
 
-- 🎤 Offline speech-to-text using Vosk
-- 💬 AI response from either OpenAI (cloud) or quantized LLM (local)
-- 🗣️ Voice responses using eSpeak NG or Coqui TTS
-- 👁️ Face-tracking avatar UI built with Electron + Three.js (in progress)
+- 🎤 Offline speech-to-text using Whisper
+- 💬 AI response from TinyLlama (local, chat-tuned)
+- 🗣️ Voice responses using Coqui TTS (optimized for Pi)
+- 👁️ Face-tracking avatar UI (Electron, in progress)
 - 🌐 Raspberry Pi acts as an edge server, remotely accessible
-- 🔌 Google Home integration planned for device control
 
 ---
 
-## 📁 Project Structure Created
-
-Here's what we've set up for you:
+## 📁 Project Structure
 
 ```
 quantum-hive/
 ├── backend/
-│   ├── main.py                # ✅ Core app logic (STT → AI → TTS loop)
-│   ├── stt/                   # ✅ Speech-to-text (Vosk)
-│   │   ├── __init__.py
-│   │   └── vosk_engine.py
-│   ├── tts/                   # ✅ Text-to-speech (eSpeak/Coqui/pyttsx3)
-│   │   ├── __init__.py
-│   │   └── tts_engine.py
-│   ├── ai/                    # ✅ AI logic (local LLM + fallback)
-│   │   ├── __init__.py
-│   │   └── local_llm.py
-│   └── utils/                 # ✅ Configs, helper tools
-│       ├── __init__.py
-│       └── config.py
-├── ui/                        # 📁 Placeholder for future Electron app
-│   └── electron-app/
-├── deploy/                    # ✅ Scripts for Pi setup
-│   └── setup_pi.sh
-├── tests/                     # ✅ Unit tests
-│   └── test_stt.py
-├── README.md                  # ✅ Updated documentation
-├── requirements.txt           # ✅ Python dependencies
-├── .gitignore                # ✅ Git ignore rules
-└── start_dev.py              # ✅ Development startup script
+│   ├── main.py                # Core app logic (STT → AI → TTS loop)
+│   ├── stt/                   # Speech-to-text (Whisper)
+│   ├── tts/                   # Text-to-speech (Coqui)
+│   ├── ai/                    # AI logic (TinyLlama)
+│   └── utils/                 # Configs, helper tools
+├── ui/                        # Placeholder for Electron app
+├── deploy/                    # Scripts for Pi setup
+├── tests/                     # Unit tests
+├── README.md                  # Documentation
+├── requirements.txt           # Python dependencies
+└── start_dev.py               # Dev startup script
 ```
-
-## 🚀 Key Features Implemented
-
-### **Speech-to-Text (STT)**
-
-- ✅ Vosk engine with offline speech recognition
-- ✅ Microphone input handling
-- ✅ Silence detection
-- ✅ Audio file transcription
-
-### **Text-to-Speech (TTS)**
-
-- ✅ Multiple engine support (eSpeak, Coqui, pyttsx3)
-- ✅ Audio file generation and playback
-- ✅ Cross-platform audio support
-
-### **AI Processing**
-
-- ✅ Local LLM with llama.cpp integration
-- ✅ Simple fallback AI for when models aren't available
-- ✅ Configurable system prompts
-- ✅ Conversation history support
-
-### **Configuration & Utilities**
-
-- ✅ Centralized configuration management
-- ✅ Logging setup
-- ✅ Path management
-- ✅ Error handling
-
-### **Deployment**
-
-- ✅ Raspberry Pi setup script
-- ✅ Systemd service creation
-- ✅ Audio configuration
-- ✅ Performance optimizations
-
-## 🧪 Next Steps
-
-1. **Test the setup locally:**
-
-   ```bash
-   # Install dependencies
-   pip install -r requirements.txt
-
-   # Test individual components
-   python backend/stt/vosk_engine.py
-   python backend/tts/tts_engine.py
-   python backend/ai/local_llm.py
-
-   # Run the full application
-   python start_dev.py
-   ```
-
-2. **Download Vosk model:**
-
-   ```bash
-   mkdir models
-   cd models
-   wget https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
-   unzip vosk-model-small-en-us-0.15.zip
-   ```
-
-3. **For Raspberry Pi deployment:**
-   ```bash
-   chmod +x deploy/setup_pi.sh
-   ./deploy/setup_pi.sh
-   ```
-
-## 🔧 Quick Start
-
-````bash
-# Clone the repo
-git clone https://github.com/your-username/quantum-hive.git
-cd quantum-hive
-
-# Create a Python virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run the assistant
-python backend/main.py
-📦 Future Add-ons
-
-Local LLM with llama.cpp or ggml
-MQTT/HTTP device control via Google Home
-Avatar with gesture animation & lip-sync
-Web dashboard for remote access
-🛠 Contributors
-
-🧠 You (the human behind the AI)
-🤖 ChatGPT (your assistant for building it)
-📜 License
-
-MIT License
-
 
 ---
 
-### ✅ Next Steps
+## ⚡️ Quick Start (Desktop or Pi)
 
-1. Do you want me to generate this folder with template `.py` files and a working `main.py` that ties STT → AI → TTS?
-2. Would you like to start with **Vosk + eSpeak** for first testing?
+### 1. **Clone and Enter Project**
 
-Let me know if you'd like this as a downloadable ZIP or GitHub-ready format.
+```sh
+git clone https://github.com/your-username/quantum-hive.git
+cd quantum-hive
+```
 
-🎉 **AMAZING! Your Quantum Hive is working perfectly!**
+### 2. **Python Version**
 
-## 🧪 Test Results Summary
+- **You must use Python 3.10 or 3.11** (not 3.12+)
+- On macOS: `brew install python@3.11`
+- On Pi: `sudo apt-get install python3.11 python3.11-venv python3.11-dev`
 
-✅ **All components are working:**
+### 3. **Create and Activate Virtual Environment**
 
-1. **Speech-to-Text (STT)**: ✅ Vosk engine successfully transcribed your speech
-2. **Text-to-Speech (TTS)**: ✅ pyttsx3 engine spoke the responses clearly
-3. **AI Processing**: ✅ Simple AI engine provided responses
-4. **Full Integration**: ✅ Complete STT → AI → TTS workflow working
+```sh
+python3.11 -m venv venv311
+source venv311/bin/activate
+```
 
-## 🤔 What Just Happened
+### 4. **Install Dependencies**
 
-The system successfully:
-- **Listened** to your speech using Vosk STT
-- **Processed** your input through the AI engine
-- **Spoke back** responses using pyttsx3 TTS
-- **Detected exit commands** and shut down gracefully
+```sh
+pip install --upgrade pip
+pip install -r requirements.txt
+```
 
-## 🔧 Current Configuration
+### 5. **Install System Audio Tools**
 
-- **STT**: Vosk with offline English model
-- **TTS**: pyttsx3 (macOS native speech synthesis)
-- **AI**: Simple rule-based engine (fallback mode)
-- **Audio**: Real-time microphone input and speaker output
+- **macOS:** `brew install ffmpeg`
+- **Raspberry Pi:** `sudo apt-get install ffmpeg aplay`
 
-## 🚀 Next Steps for Enhancement
+### 6. **Run the Assistant**
 
-1. **Improve AI Responses**: Install llama-cpp-python for better AI
-   ```bash
-   pip install llama-cpp-python
-````
+```sh
+python backend/main.py
+```
 
-2. **Add More Commands**: Extend the SimpleAIEngine with more responses
+---
 
-3. **Test on Raspberry Pi**: Use the deployment script we created
+## 🛠️ Troubleshooting
 
-4. **Add Voice Commands**: Implement specific voice commands for device control
+### **TTS/Audio Not Working?**
 
-## 🎉 Congratulations!
+- Make sure you have a working speaker and your system is not muted.
+- Try playing a test file:
+  - macOS: `afplay /System/Library/Sounds/Glass.aiff`
+  - Linux: `aplay /usr/share/sounds/alsa/Front_Center.wav`
+- Make sure you are in Python 3.10/3.11 and have run `pip install TTS`.
+- If you see errors about `pygame`, install it: `pip install pygame`.
+- If you see `[TTS] Audio file is empty` or `[AUDIO] File does not exist`, check for TTS errors in the logs.
+- You can force system audio playback by commenting out the `pygame` block in `tts_engine.py`.
 
-Your Quantum Hive AI assistant is now fully functional! You can:
+### **STT Not Working?**
 
-- Speak to it and get voice responses
-- Have basic conversations
-- Use voice commands to exit ("goodbye", "exit", etc.)
+- Make sure your microphone is connected and not muted.
+- Install Whisper with `pip install openai-whisper`.
 
-The system is ready for further development and can be deployed to your Raspberry Pi when you're ready! 🚀
+### **Dependency Issues?**
+
+- Always use the correct Python version (3.10 or 3.11).
+- If you see `No matching distribution found for TTS`, you are likely on Python 3.12+ (not supported).
+- If you see `No module named 'whisper'`, run `pip install openai-whisper` in your venv.
+- If you see `No module named 'TTS'`, run `pip install TTS` in your venv.
+
+---
+
+## 🧪 Testing Individual Components
+
+```sh
+# Test STT
+python backend/stt/whisper_engine.py
+# Test TTS
+python backend/tts/tts_engine.py
+# Test AI
+python backend/ai/gemma_text_engine.py
+```
+
+---
+
+## 🐍 requirements.txt (Key Points)
+
+- `TTS` (for Coqui TTS, Python 3.10/3.11 only)
+- `openai-whisper` (for Whisper STT)
+- `pygame` (for audio playback)
+- `torch`, `transformers`, etc. (for LLMs)
+
+---
+
+## 🥧 Raspberry Pi Tips
+
+- Use a lightweight TTS model: `tts_models/en/ljspeech/tacotron2-DDC`
+- Lower sample rate (e.g., 16000 Hz) for faster synthesis
+- Use a USB microphone and external speaker for best results
+- Run `alsamixer` to check/adjust audio settings
+
+---
+
+## 📦 Future Add-ons
+
+- Avatar with gesture animation & lip-sync
+- Web dashboard for remote access
+
+---
+
+## 🛠 Contributors
+
+- 🧠 You (the human behind the AI)
+- 🤖 ChatGPT (your assistant for building it)
+
+## 📜 License
+
+MIT License
+
+---
+
+## 📝 Changelog
+
+- 2024-07: Now uses only Whisper (STT), TinyLlama (AI), and Coqui TTS (TTS)
+- 2024-07: Added debug logging for TTS/audio troubleshooting
+- 2024-07: Updated requirements for Python 3.10/3.11 compatibility
+- 2024-07: Improved README for setup and troubleshooting
 
 ```
 
 ```
-

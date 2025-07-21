@@ -1,8 +1,14 @@
 # Core dependencies
 pyaudio>=0.2.11
-vosk>=0.3.45
+vosk==0.3.44
 pyttsx3>=2.90
-llama-cpp-python>=0.2.11
+
+# Gemma 3n dependencies
+torch>=2.0.0
+transformers>=4.53.0
+accelerate>=0.20.0
+huggingface_hub>=0.16.0
+Pillow>=9.0.0  # For image processing
 
 # Audio processing
 pygame>=2.5.0
