@@ -1,16 +1,19 @@
 # 🧠 Quantum Hive
 
-**Quantum Hive** is an offline-capable, Jarvis-like AI assistant built for Raspberry Pi 4 (8GB) and desktop. It uses local speech-to-text (Whisper), TinyLlama for AI, and Coqui TTS for voice responses.
+**Quantum Hive** is an offline-capable, Jarvis-like AI assistant built for Raspberry Pi 4 (8GB) and desktop environments. It uses local speech-to-text (Whisper), TinyLlama for AI chat responses, and Coqui TTS for voice output.
 
 ---
 
 ## 🚀 Features
 
 - 🎤 Offline speech-to-text using Whisper
-- 💬 AI response from TinyLlama (local, chat-tuned)
+- 💬 Local AI responses using TinyLlama (chat-tuned)
 - 🗣️ Voice responses using Coqui TTS (optimized for Pi)
+- 🛡️ Offline wake word detection (privacy-first)
+- 🗨️ Random activation phrases after wake word
 - 👁️ Face-tracking avatar UI (Electron, in progress)
 - 🌐 Raspberry Pi acts as an edge server, remotely accessible
+- 🛠️ Custom wake word support (via Porcupine)
 
 ---
 
@@ -36,143 +39,225 @@ quantum-hive/
 
 ## ⚡️ Quick Start (Desktop or Pi)
 
-### 1. **Clone and Enter Project**
+### 1. Clone and Enter Project
 
-```sh
+```bash
 git clone https://github.com/your-username/quantum-hive.git
 cd quantum-hive
 ```
 
-### 2. **Python Version**
+### 2. Python Version
 
-- **You must use Python 3.10 or 3.11** (not 3.12+)
-- On macOS: `brew install python@3.11`
-- On Pi: `sudo apt-get install python3.11 python3.11-venv python3.11-dev`
+> ⚠️ You must use **Python 3.10 or 3.11**  
+> Python 3.12+ is not supported by Coqui TTS.
 
-### 3. **Create and Activate Virtual Environment**
+- macOS:
+  ```bash
+  brew install python@3.11
+  ```
+- Raspberry Pi:
+  ```bash
+  sudo apt-get install python3.11 python3.11-venv python3.11-dev
+  ```
 
-```sh
+### 3. Create and Activate Virtual Environment
+
+```bash
 python3.11 -m venv venv311
 source venv311/bin/activate
 ```
 
-### 4. **Install Dependencies**
+### 4. Install Dependencies
 
-```sh
+```bash
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 5. **Install System Audio Tools**
+### 5. Install System Audio Tools
 
-- **macOS:** `brew install ffmpeg`
-- **Raspberry Pi:** `sudo apt-get install ffmpeg aplay`
+- macOS:
+  ```bash
+  brew install ffmpeg
+  ```
+- Raspberry Pi:
+  ```bash
+  sudo apt-get install ffmpeg aplay
+  ```
 
-### 6. **Run the Assistant**
+### 6. Run the Assistant
 
-```sh
+```bash
 source venv311/bin/activate
 python backend/main.py
 ```
 
 ---
 
-## 🛠️ Troubleshooting
+## 🎙️ Wake Word Setup (Porcupine)
 
-### **TTS/Audio Not Working?**
+### 1. Get a Free Access Key
 
-- Make sure you have a working speaker and your system is not muted.
-- Try playing a test file:
-  - macOS: `afplay /System/Library/Sounds/Glass.aiff`
-  - Linux: `aplay /usr/share/sounds/alsa/Front_Center.wav`
-- Make sure you are in Python 3.10/3.11 and have run `pip install TTS`.
-- If you see errors about `pygame`, install it: `pip install pygame`.
-- If you see `[TTS] Audio file is empty` or `[AUDIO] File does not exist`, check for TTS errors in the logs.
-- You can force system audio playback by commenting out the `pygame` block in `tts_engine.py`.
+- Sign up at: https://console.picovoice.ai/
+- Copy your **Access Key**
+- Add it to your `.env` file:
+  ```env
+  PICOVOICE_ACCESS_KEY=YOUR_KEY_HERE
+  ```
 
-### **STT Not Working?**
+### 2. Add Wake Word File (`.ppn`)
 
-- Make sure your microphone is connected and not muted.
-- Install Whisper with `pip install openai-whisper`.
+- Generate or download a `.ppn` file for your keyword ("Activate Hive" or custom)
+- Target platform: Raspberry Pi (ARM32/ARM64) or macOS
+- Place it here:
+  ```
+  backend/porcupine/Activate_hive.ppn
+  ```
 
-### **Dependency Issues?**
+### 3. Install Dependencies
 
-- Always use the correct Python version (3.10 or 3.11).
-- If you see `No matching distribution found for TTS`, you are likely on Python 3.12+ (not supported).
-- If you see `No module named 'whisper'`, run `pip install openai-whisper` in your venv.
-- If you see `No module named 'TTS'`, run `pip install TTS` in your venv.
+```bash
+pip install pvporcupine pyaudio
+```
+
+### 4. How It Works
+
+- Assistant runs in silent listening mode.
+- When it hears **"Activate Hive"**, it responds with a **random activation phrase**, like:
+  - "Activating Hive Mind"
+  - "At your service, master"
+  - "Activating Quantum"
+  - "Booting Hive Mind"
+- Then it listens for your input, processes it, responds, and returns to passive wake mode.
 
 ---
 
-## 🧪 Testing Individual Components
+## 🛠️ Troubleshooting
 
-```sh
+### 🔊 TTS / Audio Not Working?
+
+- Ensure speakers are connected and unmuted.
+- Test with:
+  - macOS:
+    ```bash
+    afplay /System/Library/Sounds/Glass.aiff
+    ```
+  - Linux:
+    ```bash
+    aplay /usr/share/sounds/alsa/Front_Center.wav
+    ```
+- If `pygame` throws errors:
+  ```bash
+  pip install pygame
+  ```
+- If Coqui TTS fails or returns empty audio:
+  - Check for model download errors
+  - Comment out `pygame` playback and use system fallback (e.g., `aplay`)
+
+### 🎤 STT Not Working?
+
+- Check mic is connected and system input is correct
+- Install Whisper if missing:
+  ```bash
+  pip install openai-whisper
+  ```
+
+### 🧩 Dependency Issues?
+
+- Make sure you're using **Python 3.10 or 3.11**
+- Common fixes:
+  ```bash
+  pip install openai-whisper
+  pip install TTS
+  pip install pygame
+  ```
+
+---
+
+## 🧪 Test Individual Components
+
+```bash
 # Test STT
 python backend/stt/whisper_engine.py
+
 # Test TTS
 python backend/tts/tts_engine.py
+
 # Test AI
 python backend/ai/gemma_text_engine.py
 ```
 
 ---
 
-## 🐍 requirements.txt (Key Points)
+## 🐍 Key Dependencies (requirements.txt)
 
-- `TTS` (for Coqui TTS, Python 3.10/3.11 only)
-- `openai-whisper` (for Whisper STT)
-- `pygame` (for audio playback)
-- `torch`, `transformers`, etc. (for LLMs)
-
----
-
-## 🥧 Raspberry Pi Tips
-
-- Use a lightweight TTS model: `tts_models/en/ljspeech/tacotron2-DDC`
-- Lower sample rate (e.g., 16000 Hz) for faster synthesis
-- Use a USB microphone and external speaker for best results
-- Run `alsamixer` to check/adjust audio settings
+- `TTS` (Coqui TTS)
+- `openai-whisper` (Whisper STT)
+- `torch`, `transformers` (for TinyLlama)
+- `pygame` (Audio playback)
+- `pvporcupine`, `pyaudio` (Wake word detection)
 
 ---
 
-## 📦 Future Add-ons
+## 🥧 Raspberry Pi Optimization Tips
 
-- Avatar with gesture animation & lip-sync
-- Web dashboard for remote access
+- Use a light TTS model:
+  ```
+  tts_models/en/ljspeech/tacotron2-DDC
+  ```
+- Set audio sample rate to 16000 Hz for better performance
+- Use **USB mic** and **external speaker**
+- Check volume/input using:
+  ```bash
+  alsamixer
+  ```
 
 ---
 
-## 🛠 Contributors
+## 📦 Planned Features
+
+- 🎭 Animated Avatar with facial gestures
+- 🌐 Web dashboard for remote interaction
+- 💡 Smart home integration (Google Home API)
+
+---
+
+## 👥 Contributors
 
 - 🧠 You (the human behind the AI)
-- 🤖 ChatGPT (your assistant for building it)
+- 🤖 ChatGPT (your AI assistant)
+
+---
 
 ## 📜 License
 
-MIT License
+[MIT License](LICENSE)
 
 ---
 
 ## 📝 Changelog
 
-- 2024-07: Now uses only Whisper (STT), TinyLlama (AI), and Coqui TTS (TTS)
-- 2024-07: Added debug logging for TTS/audio troubleshooting
-- 2024-07: Updated requirements for Python 3.10/3.11 compatibility
-- 2024-07: Improved README for setup and troubleshooting
+- **2024-07**: Migrated to Whisper + TinyLlama + Coqui TTS
+- **2024-07**: Added wake word detection using Porcupine
+- **2024-07**: Added debug logging for audio issues
+- **2024-07**: Cleaned up README and refactored structure
 
-## 🔑 Environment Variables & Credentials
+---
 
-- Store all credentials, API keys, and tokens in a `.env` file at the project root.
-- Example `.env`:
-  ```
-  OPENAI_API_KEY=sk-...
-  HUGGINGFACE_TOKEN=hf_...
-  OTHER_SECRET=...
-  ```
-- The `.env` file is already included in `.gitignore` and will not be committed to GitHub.
-- The app loads environment variables automatically using `os.getenv` (see `backend/utils/config.py`).
+## 🔐 Environment Variables
+
+All secrets and tokens should go in a `.env` file at the root:
+
+```
+OPENAI_API_KEY=sk-...
+HUGGINGFACE_TOKEN=hf_...
+PICOVOICE_ACCESS_KEY=...
+```
+
+The app automatically loads this using `os.getenv()` (see `backend/utils/config.py`).  
+`.env` is ignored by Git via `.gitignore`.
 
 ```
 
+---
 ```
-
