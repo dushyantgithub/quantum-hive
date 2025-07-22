@@ -1,6 +1,9 @@
 """
 Quantum Hive - Main Application
-Orchestrates STT → AI → TTS workflow
+Orchestrates Wake Word → STT → AI → TTS workflow
+
+Requirements for wake word:
+    pip install pvporcupine pyaudio
 """
 import logging
 import time
@@ -12,6 +15,11 @@ from datetime import datetime, timedelta
 import os
 from sentence_transformers import SentenceTransformer, util
 import numpy as np
+import pvporcupine
+import pyaudio
+import struct
+import dotenv
+import random
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
@@ -132,17 +140,69 @@ class QuantumHive:
         ]
         return any(trigger in text.lower() for trigger in triggers)
 
+    def _embed_text(self, text):
+        """Embed a single text string using the SentenceTransformer."""
+        return self.embedder.encode(text, convert_to_tensor=True).tolist()
+
+    def _listen_for_wake_word(self):
+        """Continuously listen for the custom 'Activate Hive' wake word using the .ppn file and Picovoice access key."""
+        dotenv.load_dotenv(dotenv.find_dotenv())
+        access_key = os.getenv("PICOVOICE_ACCESS_KEY")
+        if not access_key:
+            raise RuntimeError("PICOVOICE_ACCESS_KEY not set in environment or .env file.")
+        keyword_path = str(Path(__file__).parent / "porcupine" / "Activate_hive.ppn")
+        porcupine = pvporcupine.create(access_key=access_key, keyword_paths=[keyword_path], sensitivities=[0.7])
+        pa = pyaudio.PyAudio()
+        audio_stream = pa.open(
+            rate=porcupine.sample_rate,
+            channels=1,
+            format=pyaudio.paInt16,
+            input=True,
+            frames_per_buffer=porcupine.frame_length
+        )
+        print("\n👂 Listening for wake word: 'Activate Hive'...")
+        logger.info("Listening for wake word...")
+        detected = False
+        try:
+            while not detected and self.running:
+                pcm = audio_stream.read(porcupine.frame_length, exception_on_overflow=False)
+                pcm = struct.unpack_from("h" * porcupine.frame_length, pcm)
+                result = porcupine.process(pcm)
+                if result >= 0:
+                    print("\n🟢 Wake word 'Activate Hive' detected!")
+                    logger.info("Wake word detected!")
+                    detected = True
+                    break
+        except Exception as e:
+            logger.error(f"Error in wake word detection: {e}")
+        finally:
+            audio_stream.close()
+            pa.terminate()
+            porcupine.delete()
+        return detected
+
     def start(self):
         logger.info("Starting Quantum Hive...")
         self.running = True
-        welcome_message = "Hello! I am Quantum Hive, your AI assistant. I'm ready to help you!"
+        # No initial greeting, just listen for wake word
         logger.info("Quantum Hive is ready!")
         try:
-            self.tts_engine.speak(welcome_message)
             last_user_input = None
             while self.running:
+                # Wake word loop
+                if not self._listen_for_wake_word():
+                    continue
+                # Respond with a random activation phrase after wake word
+                activation_phrases = [
+                    "Activating Hive Mind",
+                    "At your service master",
+                    "Activating Quantum",
+                    "Booting hive mind"
+                ]
+                activation_message = random.choice(activation_phrases)
+                self.tts_engine.speak(activation_message)
                 try:
-                    logger.info("Listening for speech...")
+                    logger.info("Wake word detected. Listening for speech...")
                     user_input = self.stt_engine.listen_for_speech(timeout=30.0, min_record_time=3.0)
                     if user_input:
                         print(f"\n🎤 **You said:** {user_input}")
@@ -184,7 +244,7 @@ class QuantumHive:
                         })
                         self._save_history()
                         last_user_input = user_input
-                        print(f"\n🎧 **Listening for speech...**")
+                        print(f"\n🎧 **Say the wake word to activate again...**")
                     else:
                         logger.debug("No speech detected")
                 except KeyboardInterrupt:

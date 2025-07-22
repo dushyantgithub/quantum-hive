@@ -224,8 +224,8 @@ python backend/ai/gemma_text_engine.py
 
 ## 👥 Contributors
 
-- 🧠 You (the human behind the AI)
-- 🤖 ChatGPT (your AI assistant)
+- 🧠 Dushyant Singh (the human behind the AI)
+- 🤖 ChatGPT + Cursor (Vibe code + reasoning + research)
 
 ---
 
@@ -261,3 +261,4 @@ The app automatically loads this using `os.getenv()` (see `backend/utils/config.
 
 ---
 ```
+
