@@ -85,6 +85,18 @@ pip install -r requirements.txt
   sudo apt-get install ffmpeg aplay
   ```
 
+**Audio Device Configuration (Raspberry Pi):**
+- **Input (Microphone):** USB PnP Sound Device (usually auto-detected)
+- **Output (Speaker):** Built-in headphone jack (device: `hw:2,0`)
+- The app is pre-configured to use these devices in `backend/utils/config.py`:
+  ```python
+  AUDIO_SETTINGS = {
+      # ...
+      "input_device": 1,         # USB mic index
+      "output_device": "hw:2,0" # Headphone jack for playback
+  }
+  ```
+
 ### 6. Run the Assistant
 
 ```bash
@@ -136,23 +148,20 @@ pip install pvporcupine pyaudio
 
 ### 🔊 TTS / Audio Not Working?
 
-- Ensure speakers are connected and unmuted.
+- Ensure speakers are connected to the **headphone jack** (not HDMI) and unmuted.
 - Test with:
   - macOS:
     ```bash
     afplay /System/Library/Sounds/Glass.aiff
     ```
-  - Linux:
+  - Linux (headphone jack):
     ```bash
-    aplay /usr/share/sounds/alsa/Front_Center.wav
+    aplay -D hw:2,0 /usr/share/sounds/alsa/Front_Center.wav
     ```
-- If `pygame` throws errors:
-  ```bash
-  pip install pygame
-  ```
+- If `pygame` throws errors like `ALSA: Couldn't open audio device: Unknown error 524`, **this is normal** on headless or Pi setups. The app will automatically fall back to `aplay` with the correct device.
 - If Coqui TTS fails or returns empty audio:
   - Check for model download errors
-  - Comment out `pygame` playback and use system fallback (e.g., `aplay`)
+  - Ensure the output device is set to `hw:2,0` in `AUDIO_SETTINGS`.
 
 ### 🎤 STT Not Working?
 

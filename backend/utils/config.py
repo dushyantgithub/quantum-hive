@@ -15,10 +15,12 @@ dotenv.load_dotenv(dotenv.find_dotenv())
 
 # Audio settings
 AUDIO_SETTINGS = {
-    "sample_rate": 16000,
+    "sample_rate": 44100,  # Use 44100 Hz since USB device supports it
     "channels": 1,
     "chunk_size": 1024,
-    "format": "int16"
+    "format": "int16",
+    "input_device": 1,  # Device index for USB PnP Sound Device (microphone)
+    "output_device": "hw:2,0"  # Built-in headphone jack for audio playback
 }
 
 # Speech-to-Text settings

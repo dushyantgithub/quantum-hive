@@ -104,8 +104,11 @@ class TTSEngine:
                 logger.debug("[AUDIO] Using afplay for playback...")
                 subprocess.run(["afplay", audio_file_path])
             elif system == "linux":
-                logger.debug("[AUDIO] Using aplay for playback...")
-                subprocess.run(["aplay", audio_file_path])
+                from ..utils.config import AUDIO_SETTINGS
+                output_device = AUDIO_SETTINGS.get("output_device", "hw:2,0")
+                logger.debug(f"[AUDIO] Using aplay with device {output_device} for playback...")
+                subprocess.run(["aplay", "-D", output_device, audio_file_path], check=True)
+                logger.info(f"Successfully played audio via {output_device}: {audio_file_path}")
             elif system == "windows":
                 logger.debug("[AUDIO] Using start for playback...")
                 subprocess.run(["start", audio_file_path], shell=True)
