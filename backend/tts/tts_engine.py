@@ -107,6 +107,26 @@ class TTSEngine:
                 from ..utils.config import AUDIO_SETTINGS
                 output_device = AUDIO_SETTINGS.get("output_device", "hw:2,0")
                 logger.debug(f"[AUDIO] Using aplay with device {output_device} for playback...")
+                
+                try:
+                    # First try Bluetooth if available
+                    import subprocess as sp
+                    result = sp.run(["bluetoothctl", "info", "4C:72:74:B6:4B:2F"], 
+                                  capture_output=True, text=True)
+                    if "Connected: yes" in result.stdout:
+                        logger.debug("[AUDIO] Bluetooth speaker detected, trying BlueALSA...")
+                        # Try Bluetooth audio first
+                        try:
+                            subprocess.run(["aplay", "-D", "bluealsa", audio_file_path], 
+                                         check=True, timeout=10)
+                            logger.info(f"Successfully played audio via Bluetooth: {audio_file_path}")
+                            return
+                        except:
+                            logger.debug("[AUDIO] BlueALSA failed, falling back to default device")
+                except:
+                    logger.debug("[AUDIO] Bluetooth check failed, using default device")
+                
+                # Fallback to default device (headphone jack)
                 subprocess.run(["aplay", "-D", output_device, audio_file_path], check=True)
                 logger.info(f"Successfully played audio via {output_device}: {audio_file_path}")
             elif system == "windows":

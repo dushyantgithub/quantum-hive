@@ -69,13 +69,21 @@ class WhisperSTTEngine:
         """
         try:
             # Open audio stream
-            self.stream = self.audio.open(
+            input_device = AUDIO_SETTINGS.get("input_device")
+            open_kwargs = dict(
                 format=self.format,
                 channels=self.channels,
                 rate=self.sample_rate,
                 input=True,
                 frames_per_buffer=self.chunk_size
             )
+            if input_device is not None:
+                if isinstance(input_device, int):
+                    open_kwargs["input_device_index"] = input_device
+                else:
+                    logger.warning(f"Input device should be an integer index, got: {input_device}")
+            print(f"[DEBUG] Opening PyAudio stream with: {open_kwargs}")
+            self.stream = self.audio.open(**open_kwargs)
             
             frames = []
             silent_chunks = 0
