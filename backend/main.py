@@ -21,13 +21,20 @@ import struct
 import dotenv
 import random
 
+# Load environment variables first
+dotenv.load_dotenv(dotenv.find_dotenv())
+
+# Debug: Print the loaded endpoint
+print(f"🔍 [DEBUG] Loaded LOCAL_LLM_ENDPOINT: {os.getenv('LOCAL_LLM_ENDPOINT', 'NOT SET')}")
+
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 
 # Import our modules
 from backend.stt.whisper_engine import WhisperSTTEngine
 from backend.tts.tts_engine import TTSEngine
-from backend.ai.gemma_text_engine import TinyLlamaTextAIEngine
+# Removed TinyLlamaTextAIEngine - using API instead
+from backend.ai.gemma_api_client import GemmaAPIClient
 from backend.utils.config import LOGGING_SETTINGS, STT_SETTINGS, TTS_SETTINGS, MEMORY_SETTINGS
 from backend.smart_home import GoogleHomeController
 
@@ -48,7 +55,7 @@ class QuantumHive:
         self.running = False
         self.stt_engine = None
         self.tts_engine = None
-        self.ai_engine = None
+        self.api_client = None
         self.google_home = None
         self.system_prompt = (
             "You are Quantum Hive, a helpful AI assistant running on a Raspberry Pi. "
@@ -67,7 +74,8 @@ class QuantumHive:
             self.tts_engine = TTSEngine(engine_type="coqui")
             logger.info("Initializing Google Home controller...")
             self.google_home = GoogleHomeController()
-            # TinyLlama will be lazy-loaded when Advance mode is first used
+            # Initialize API client for Advance mode
+            self.api_client = GemmaAPIClient()
             self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
             self.conversation_history = self._load_recent_history()
             # If any messages are missing embeddings, add them
@@ -167,26 +175,96 @@ class QuantumHive:
         ]
         return random.choice(mode_prompts)
 
-    def _validate_mode_selection(self, user_input):
-        """Validate and return the selected mode"""
-        if not user_input:
-            return None
+    def _listen_for_mode_wake_words(self):
+        """Listen for Basic or Advance wake words for mode selection."""
+        import scipy.signal
+        from backend.utils.config import AUDIO_SETTINGS
         
-        user_input_lower = user_input.lower().strip()
+        dotenv.load_dotenv(dotenv.find_dotenv())
+        access_key = os.getenv("PICOVOICE_ACCESS_KEY")
+        if not access_key:
+            raise RuntimeError("PICOVOICE_ACCESS_KEY not set in environment or .env file.")
         
-        # Check for Home mode
-        if any(word in user_input_lower for word in ["home", "smart home", "house", "home mode"]):
-            return "home"
+        # Define mode wake word paths
+        basic_keyword_path = str(Path(__file__).parent / "porcupine" / "Basic.ppn")
+        advance_keyword_path = str(Path(__file__).parent / "porcupine" / "Advance.ppn")
         
-        # Check for Advance mode  
-        if any(word in user_input_lower for word in ["advance", "advanced", "advance mode", "chat", "conversation"]):
-            return "advance"
+        # Create Porcupine with mode wake words
+        porcupine = pvporcupine.create(
+            access_key=access_key, 
+            keyword_paths=[basic_keyword_path, advance_keyword_path], 
+            sensitivities=[0.7, 0.7]
+        )
         
-        # Invalid selection
-        return None
+        # Get device sample rate and calculate resampling parameters
+        device_sample_rate = AUDIO_SETTINGS["sample_rate"]  # 44100 Hz
+        porcupine_sample_rate = porcupine.sample_rate  # 16000 Hz
+        input_device = AUDIO_SETTINGS.get("input_device")
+        
+        # Calculate frame sizes for resampling
+        device_frame_length = int(porcupine.frame_length * device_sample_rate / porcupine_sample_rate)
+        
+        pa = pyaudio.PyAudio()
+        
+        # Open audio stream with device's native sample rate
+        open_kwargs = dict(
+            rate=device_sample_rate,
+            channels=1,
+            format=pyaudio.paInt16,
+            input=True,
+            frames_per_buffer=device_frame_length
+        )
+        if input_device is not None:
+            open_kwargs["input_device_index"] = input_device
+            
+        audio_stream = pa.open(**open_kwargs)
+        
+        print(f"\n👂 Listening for mode wake words: 'Basic' or 'Advance'...")
+        logger.info(f"Listening for mode wake words with resampling {device_sample_rate}Hz → {porcupine_sample_rate}Hz")
+        detected_mode = None
+        
+        try:
+            start_time = time.time()
+            timeout = 15.0  # 15 second timeout for mode selection
+            
+            while not detected_mode and self.running:
+                # Check timeout
+                if time.time() - start_time > timeout:
+                    logger.info("Mode selection timeout reached")
+                    break
+                
+                # Read audio at device sample rate
+                pcm_data = audio_stream.read(device_frame_length, exception_on_overflow=False)
+                pcm_array = struct.unpack_from("h" * device_frame_length, pcm_data)
+                
+                # Resample to Porcupine's required sample rate
+                resampled = scipy.signal.resample(pcm_array, porcupine.frame_length)
+                resampled_int16 = np.clip(resampled, -32768, 32767).astype(np.int16)
+                
+                # Process with Porcupine
+                result = porcupine.process(resampled_int16)
+                if result >= 0:
+                    if result == 0:  # Basic.ppn detected
+                        print("\n🏠 Wake word 'Basic' detected!")
+                        logger.info("Basic wake word detected!")
+                        detected_mode = "basic"
+                    elif result == 1:  # Advance.ppn detected
+                        print("\n🧠 Wake word 'Advance' detected!")
+                        logger.info("Advance wake word detected!")
+                        detected_mode = "advance"
+                    break
+                    
+        except Exception as e:
+            logger.error(f"Error in mode wake word detection: {e}")
+        finally:
+            audio_stream.close()
+            pa.terminate()
+            porcupine.delete()
+            
+        return detected_mode
 
     def _handle_mode_selection(self):
-        """Handle the mode selection process"""
+        """Handle the mode selection process using wake words"""
         max_attempts = 3
         for attempt in range(max_attempts):
             # Ask for mode selection
@@ -195,35 +273,24 @@ class QuantumHive:
             logger.info(f"Asking for mode selection: {mode_prompt}")
             self.tts_engine.speak(mode_prompt)
             
-            # Listen for mode selection
-            print("\n🎤 Listening for mode selection...")
-            mode_input = self.stt_engine.listen_for_speech(timeout=15.0, min_record_time=1.0)
+            # Listen for mode wake words
+            print("\n🎤 Please say 'Basic' for smart home control or 'Advance' for AI chat...")
+            selected_mode = self._listen_for_mode_wake_words()
             
-            if mode_input:
-                print(f"🎤 **You said:** {mode_input}")
-                logger.info(f"Mode selection input: {mode_input}")
+            if selected_mode:
+                if selected_mode == "basic":
+                    confirmation = "Basic mode activated, Master. Ready to control your smart home devices."
+                else:  # advance
+                    confirmation = "Advance mode activated, Master. Ready for intelligent conversation."
                 
-                selected_mode = self._validate_mode_selection(mode_input)
-                
-                if selected_mode:
-                    if selected_mode == "home":
-                        confirmation = "Home mode activated, Master. Ready to control your smart home devices."
-                    else:  # advance
-                        confirmation = "Advance mode activated, Master. Ready for intelligent conversation."
-                    
-                    print(f"🤖 **Mode Selected:** {selected_mode.title()}")
-                    logger.info(f"Mode selected: {selected_mode}")
-                    self.tts_engine.speak(confirmation)
-                    return selected_mode
-                else:
-                    # Invalid selection
-                    error_msg = "Please choose either Home mode for smart home control, or Advance mode for AI conversation, Master."
-                    print(f"🤖 **Invalid Selection:** {error_msg}")
-                    self.tts_engine.speak(error_msg)
+                print(f"🤖 **Mode Selected:** {selected_mode.title()}")
+                logger.info(f"Mode selected: {selected_mode}")
+                self.tts_engine.speak(confirmation)
+                return selected_mode
             else:
-                # No speech detected
-                timeout_msg = "I didn't hear your selection, Master. Please try again."
-                print(f"🤖 **No Input:** {timeout_msg}")
+                # No wake word detected
+                timeout_msg = "I didn't hear your mode selection, Master. Please try again."
+                print(f"🤖 **No Selection:** {timeout_msg}")
                 self.tts_engine.speak(timeout_msg)
         
         # After max attempts, default to advance mode
@@ -233,47 +300,30 @@ class QuantumHive:
         self.tts_engine.speak(default_msg)
         return "advance"
 
-    def _ensure_ai_engine_loaded(self):
-        """Lazy load TinyLlama AI engine when needed"""
-        if self.ai_engine is None:
-            print("🧠 **Loading AI Engine** - Please wait while I initialize the advanced conversation system...")
-            logger.info("Lazy loading TinyLlama AI engine...")
-            self.tts_engine.speak("Loading advanced AI system, Master. This will take a moment.")
-            
-            try:
-                self.ai_engine = TinyLlamaTextAIEngine()
-                print("✅ **AI Engine Ready** - Advanced conversation mode is now available")
-                logger.info("TinyLlama AI engine loaded successfully")
-                self.tts_engine.speak("Advanced AI system loaded successfully, Master. I'm ready for intelligent conversation.")
-            except Exception as e:
-                logger.error(f"Failed to load TinyLlama AI engine: {e}")
-                self.tts_engine.speak("Sorry Master, I encountered an error loading the advanced AI system. Please try again.")
-                raise
-
-    def _handle_home_mode(self):
-        """Handle Home mode - Smart home device control"""
-        print("\n🏠 **Home Mode Active** - Ready for smart home commands")
-        logger.info("Entering Home mode")
+    def _handle_basic_mode(self):
+        """Handle Basic mode - Smart home device control"""
+        print("\n🏠 **Basic Mode Active** - Ready for smart home commands")
+        logger.info("Entering Basic mode")
         
-        # Listen for home control commands
+        # Listen for basic control commands
         print("🎤 What would you like me to control in your home?")
-        home_command = self.stt_engine.listen_for_speech(timeout=20.0, min_record_time=1.0)
+        basic_command = self.stt_engine.listen_for_speech(timeout=25.0, min_record_time=2.0)
         
-        if home_command:
-            print(f"🎤 **Home Command:** {home_command}")
-            logger.info(f"Home command: {home_command}")
+        if basic_command:
+            print(f"🎤 **Basic Command:** {basic_command}")
+            logger.info(f"Basic command: {basic_command}")
             
-            # Process home command (placeholder for now)
-            response = self._process_home_command(home_command)
-            print(f"🏠 **Home Response:** {response}")
-            logger.info(f"Home response: {response}")
+            # Process basic command
+            response = self._process_basic_command(basic_command)
+            print(f"🏠 **Basic Response:** {response}")
+            logger.info(f"Basic response: {response}")
             self.tts_engine.speak(response)
         else:
-            no_command_msg = "I didn't hear a command, Master. Returning to standby mode."
+            no_command_msg = "I didn't hear a command, Master. Say 'Activate Hive' to try again."
             print(f"🏠 **No Command:** {no_command_msg}")
             self.tts_engine.speak(no_command_msg)
 
-    def _process_home_command(self, command):
+    def _process_basic_command(self, command):
         """Process smart home commands using Google Home API"""
         command_lower = command.lower()
         
@@ -339,26 +389,31 @@ class QuantumHive:
             return f"Sorry Master, I encountered an error processing your home command: {str(e)}"
 
     def _handle_advance_mode(self, last_user_input):
-        """Handle Advance mode - AI conversation with TinyLlama"""
+        """Handle Advance mode - AI conversation with Gemma API (loops until exit)"""
         print("\n🧠 **Advance Mode Active** - Ready for intelligent conversation")
-        logger.info("Entering Advance mode")
-        
-        # Ensure AI engine is loaded (lazy loading)
-        self._ensure_ai_engine_loaded()
-        
-        logger.info("Wake word detected. Listening for speech...")
-        user_input = self.stt_engine.listen_for_speech(timeout=30.0, min_record_time=3.0)
-        
-        if user_input:
+        logger.info("Entering Advance mode loop (will remain until exit command)")
+
+        while self.running:
+            print("\n💬 Please speak your question or request clearly (or say 'exit' to leave)...")
+            user_input = self.stt_engine.listen_for_speech(timeout=10.0, min_record_time=2.0)
+
+            if not user_input or not user_input.strip():
+                no_input_msg = "I didn't hear anything, Master. Please try again."
+                print(f"🧠 **No Input:** {no_input_msg}")
+                self.tts_engine.speak(no_input_msg)
+                continue  # stay in advance mode
+
             print(f"\n🎤 **You said:** {user_input}")
             logger.info(f"User said: {user_input}")
-            
+
+            # Handle exit command
             if self._is_exit_command(user_input):
                 print(f"\n🛑 **Exit command detected:** {user_input}")
-                logger.info("Exit command detected")
+                logger.info("Exit command detected, leaving Advance mode loop")
                 self.stop()
-                return
-                
+                return  # completely stop application
+
+            # Handle memory search command
             if self._is_memory_search_command(user_input) and last_user_input:
                 logger.info("Memory search command detected.")
                 try:
@@ -370,48 +425,71 @@ class QuantumHive:
                         response = "I don't remember anything relevant from the last week."
                     print(f"🤖 **Memory Search Result:** {response}")
                     self.tts_engine.speak(response)
-                    return last_user_input
                 except Exception as e:
                     logger.error(f"Memory search failed: {e}")
                     response = "Sorry Master, I had trouble searching my memory."
                     self.tts_engine.speak(response)
-                    return last_user_input
-                
-            logger.info("Generating AI response...")
-            # Pass recent history to TinyLlama
+                # continue listening in Advance mode
+                last_user_input = user_input  # update for potential next memory search
+                continue
+
+            # Generate AI response via API
+            logger.info("Generating AI response via Gemma API...")
             history_pairs = [(msg["user"], msg["ai"]) for msg in self.conversation_history[-6:]]
-            ai_response = self.ai_engine.generate_response(
+            ai_response = self.api_client.generate_response(
                 user_input,
                 system_prompt=self.system_prompt,
                 history=history_pairs
             )
-            print(f"🤖 **AI Response:** {ai_response}")
-            logger.info(f"AI response: {ai_response}")
-            logger.info("Speaking response...")
-            self.tts_engine.speak(ai_response)
-            
-            # Store the exchange with timestamp
-            self.conversation_history.append({
-                "timestamp": datetime.utcnow().isoformat(),
-                "user": user_input,
-                "ai": ai_response,
-                "user_embedding": self._embed_text(user_input),
-                "ai_embedding": self._embed_text(ai_response)
-            })
-            self._save_history()
-            
-            print(f"\n🎧 **Say the wake word to activate again...**")
-            return user_input
-        else:
-            logger.debug("No speech detected")
-            return last_user_input
+
+            # Debug validation
+            print(f"\n🔍 [DEBUG] Raw AI response: '{ai_response}' (length {len(ai_response) if ai_response else 0})")
+
+            if ai_response and ai_response.strip():
+                lower_resp = ai_response.lower().strip()
+                error_prefixes = (
+                    "sorry master, i'm having trouble",
+                    "sorry master, i encountered",
+                    "sorry master, my response is taking",
+                    "sorry master, i'm having connection"
+                )
+                if any(lower_resp.startswith(p) for p in error_prefixes):
+                    # Error-style response, inform user and retry loop
+                    error_msg = "I'm having trouble connecting to my advanced AI system. Let's try again."
+                    print(f"🧠 **AI Error Response:** {error_msg}")
+                    self.tts_engine.speak(error_msg)
+                    continue  # stay in advance mode
+
+                # Valid response
+                print(f"🤖 **AI Response:** {ai_response}")
+                logger.info(f"AI response: {ai_response}")
+                self.tts_engine.speak(ai_response)
+
+                # Save conversation
+                self.conversation_history.append({
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "user": user_input,
+                    "ai": ai_response,
+                    "user_embedding": self._embed_text(user_input),
+                    "ai_embedding": self._embed_text(ai_response)
+                })
+                self._save_history()
+
+                # Update last user input for memory search
+                last_user_input = user_input
+            else:
+                # Empty response from API
+                error_msg = "I didn't get a response from the AI. Let's try again."
+                print(f"🧠 **Empty AI Response:** {error_msg}")
+                self.tts_engine.speak(error_msg)
+                # continue loop to listen again
 
     def _embed_text(self, text):
         """Embed a single text string using the SentenceTransformer."""
         return self.embedder.encode(text, convert_to_tensor=True).tolist()
 
     def _listen_for_wake_word(self):
-        """Continuously listen for the custom 'Activate Hive' wake word using the .ppn file and Picovoice access key."""
+        """Listen for the main 'Activate Hive' wake word."""
         import scipy.signal
         from backend.utils.config import AUDIO_SETTINGS
         
@@ -419,6 +497,8 @@ class QuantumHive:
         access_key = os.getenv("PICOVOICE_ACCESS_KEY")
         if not access_key:
             raise RuntimeError("PICOVOICE_ACCESS_KEY not set in environment or .env file.")
+        
+        # Use the main activate hive wake word
         keyword_path = str(Path(__file__).parent / "porcupine" / "Activate_hive.ppn")
         porcupine = pvporcupine.create(access_key=access_key, keyword_paths=[keyword_path], sensitivities=[0.7])
         
@@ -489,11 +569,11 @@ class QuantumHive:
                 selected_mode = self._handle_mode_selection()
                 
                 try:
-                    if selected_mode == "home":
-                        # Home mode - Smart home control
-                        self._handle_home_mode()
-                    else:
-                        # Advance mode - AI conversation
+                    if selected_mode == "basic":
+                        # Basic mode - Smart home control
+                        self._handle_basic_mode()
+                    elif selected_mode == "advance":
+                        # Advance mode - AI conversation with API
                         result = self._handle_advance_mode(last_user_input)
                         if result:  # Update last_user_input if we got one
                             last_user_input = result

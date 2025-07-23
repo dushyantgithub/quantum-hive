@@ -37,72 +37,21 @@ quantum-hive/
 
 ---
 
-## ⚡️ Quick Start (Desktop or Pi)
-
-### 1. Clone and Enter Project
+## Quick start
 
 ```bash
-git clone https://github.com/your-username/quantum-hive.git
-cd quantum-hive
-```
-
-### 2. Python Version
-
-> ⚠️ You must use **Python 3.10 or 3.11**  
-> Python 3.12+ is not supported by Coqui TTS.
-
-- macOS:
-  ```bash
-  brew install python@3.11
-  ```
-- Raspberry Pi:
-  ```bash
-  sudo apt-get install python3.11 python3.11-venv python3.11-dev
-  ```
-
-### 3. Create and Activate Virtual Environment
-
-```bash
-python3.11 -m venv venv311
-source venv311/bin/activate
-```
-
-### 4. Install Dependencies
-
-```bash
-pip install --upgrade pip
+# (Optional) create virtual environment and install requirements
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+
+# Set environment variables (edit .env for your setup)
+export LOCAL_LLM_ENDPOINT=dushyant-pc.tailde7d3d.ts.net:11434
+
+# Run Quantum Hive
+python quantum
 ```
 
-### 5. Install System Audio Tools
-
-- macOS:
-  ```bash
-  brew install ffmpeg
-  ```
-- Raspberry Pi:
-  ```bash
-  sudo apt-get install ffmpeg aplay
-  ```
-
-**Audio Device Configuration (Raspberry Pi):**
-- **Input (Microphone):** USB PnP Sound Device (usually auto-detected)
-- **Output (Speaker):** Built-in headphone jack (device: `hw:2,0`)
-- The app is pre-configured to use these devices in `backend/utils/config.py`:
-  ```python
-  AUDIO_SETTINGS = {
-      # ...
-      "input_device": 1,         # USB mic index
-      "output_device": "hw:2,0" # Headphone jack for playback
-  }
-  ```
-
-### 6. Run the Assistant
-
-```bash
-source venv311/bin/activate
-python backend/main.py
-```
+The `python quantum` command is a thin wrapper that invokes `backend.main.main()`.
 
 ---
 

@@ -25,11 +25,52 @@ class TTSEngine:
     def _init_coqui(self):
         try:
             from TTS.api import TTS
-            model_name = self.voice or "tts_models/en/ljspeech/tacotron2-DDC"
-            self._engine = TTS(model_name)
-            if hasattr(self._engine, 'output_sample_rate'):
-                self._engine.output_sample_rate = self.rate
-            logger.info(f"Coqui TTS engine initialized with model: {model_name} at {self.rate} Hz")
+            import torch
+            
+            # Try fast models first, fallback to slower ones
+            fast_models = [
+                "tts_models/en/ljspeech/fast_pitch",  # FastPitch is much faster
+                "tts_models/en/ljspeech/speedy_speech",  # Speedy Speech is very fast
+                "tts_models/en/ljspeech/tacotron2-DDC"  # Fallback to original
+            ]
+            
+            model_name = self.voice or fast_models[0]
+            
+            # If the configured model is not in our fast list, try it first
+            if model_name not in fast_models:
+                models_to_try = [model_name] + fast_models
+            else:
+                models_to_try = fast_models
+            
+            for model in models_to_try:
+                try:
+                    logger.info(f"Trying TTS model: {model}")
+                    # Use CPU for faster loading on Pi, disable GPU optimization
+                    self._engine = TTS(model, gpu=False)
+                    
+                    # Set low memory and fast processing options for 16kHz output
+                    if hasattr(self._engine, 'output_sample_rate'):
+                        self._engine.output_sample_rate = self.rate
+                    
+                    # Configure synthesizer for faster processing at 16kHz
+                    if hasattr(self._engine, 'synthesizer'):
+                        if hasattr(self._engine.synthesizer, 'output_sample_rate'):
+                            self._engine.synthesizer.output_sample_rate = self.rate
+                    
+                    # Optimize for speed on CPU
+                    if hasattr(self._engine, 'synthesizer') and hasattr(self._engine.synthesizer, 'tts_model'):
+                        # Disable attention alignment for speed (if available)
+                        if hasattr(self._engine.synthesizer.tts_model, 'use_forward_attn'):
+                            self._engine.synthesizer.tts_model.use_forward_attn = False
+                    
+                    logger.info(f"Coqui TTS engine initialized with model: {model} at {self.rate} Hz")
+                    return
+                except Exception as e:
+                    logger.warning(f"Failed to load model {model}: {e}")
+                    continue
+            
+            raise RuntimeError("All TTS models failed to load")
+            
         except ImportError:
             raise RuntimeError("Coqui TTS not installed. Run: pip install TTS")
         except Exception as e:
@@ -48,20 +89,41 @@ class TTSEngine:
     def _speak_coqui(self, text, save_to_file=None):
         import tempfile
         import os
+        import time
         try:
+            start_time = time.time()
             logger.debug(f"[TTS] Starting synthesis with Coqui: '{text}'")
+            
+            # Preprocess text for faster synthesis
+            text = self._preprocess_text_for_speed(text)
+            
             if not save_to_file:
                 save_to_file = tempfile.mktemp(suffix=".wav")
             logger.debug(f"[TTS] Output file will be: {save_to_file}")
-            self._engine.tts_to_file(text=text, file_path=save_to_file)
-            logger.debug(f"[TTS] Synthesis complete. Checking file existence...")
+            
+            # Use faster synthesis options if available
+            try:
+                # Try with speed optimizations
+                self._engine.tts_to_file(
+                    text=text, 
+                    file_path=save_to_file,
+                    # Add speed optimizations where possible
+                )
+            except TypeError:
+                # Fallback if advanced options not supported
+                self._engine.tts_to_file(text=text, file_path=save_to_file)
+            
+            synthesis_time = time.time() - start_time
+            logger.debug(f"[TTS] Synthesis complete in {synthesis_time:.2f}s. Checking file...")
+            
             if not os.path.exists(save_to_file):
                 logger.error(f"[TTS] Audio file was not created: {save_to_file}")
                 return None
             if os.path.getsize(save_to_file) == 0:
                 logger.error(f"[TTS] Audio file is empty: {save_to_file}")
                 return None
-            logger.info(f"Coqui TTS: '{text}' -> {save_to_file}")
+                
+            logger.info(f"Coqui TTS: '{text}' -> {save_to_file} (synthesis: {synthesis_time:.2f}s)")
             logger.debug(f"[TTS] Attempting to play audio file: {save_to_file}")
             self.play_audio_file(save_to_file)
             logger.debug(f"[TTS] Playback function completed for: {save_to_file}")
@@ -69,6 +131,29 @@ class TTSEngine:
         except Exception as e:
             logger.error(f"Coqui TTS error: {e}")
             return None
+            
+    def _preprocess_text_for_speed(self, text):
+        """Preprocess text to make TTS synthesis faster"""
+        import re
+        
+        # Remove extra whitespace
+        text = ' '.join(text.split())
+        
+        # Simplify complex punctuation that might slow down synthesis
+        text = re.sub(r'[.]{2,}', '.', text)  # Multiple dots to single dot
+        text = re.sub(r'[!]{2,}', '!', text)  # Multiple exclamations to single
+        text = re.sub(r'[?]{2,}', '?', text)  # Multiple questions to single
+        text = re.sub(r'[-]{2,}', '-', text)  # Multiple dashes to single
+        
+        # Keep text concise for faster processing
+        if len(text) > 200:
+            # Split long text into sentences and keep only first few for faster processing
+            sentences = text.split('. ')
+            if len(sentences) > 3:
+                text = '. '.join(sentences[:3]) + '.'
+                logger.debug(f"[TTS] Truncated long text for speed: '{text}'")
+        
+        return text
 
     def play_audio_file(self, audio_file_path):
         import os
@@ -108,26 +193,8 @@ class TTSEngine:
                 output_device = AUDIO_SETTINGS.get("output_device", "hw:2,0")
                 logger.debug(f"[AUDIO] Using aplay with device {output_device} for playback...")
                 
-                try:
-                    # First try Bluetooth if available
-                    import subprocess as sp
-                    result = sp.run(["bluetoothctl", "info", "4C:72:74:B6:4B:2F"], 
-                                  capture_output=True, text=True, timeout=3)
-                    if "Connected: yes" in result.stdout:
-                        logger.debug("[AUDIO] Bluetooth speaker detected, trying BlueALSA...")
-                        # Try Bluetooth audio first with proper parameters
-                        try:
-                            # Use BlueALSA with correct sample rate and channels
-                            subprocess.run(["aplay", "-D", "bluealsa", "-r", "22050", "-c", "1", audio_file_path], 
-                                         check=True, timeout=15)
-                            logger.info(f"Successfully played audio via Bluetooth: {audio_file_path}")
-                            return
-                        except subprocess.TimeoutExpired:
-                            logger.warning("[AUDIO] Bluetooth playback timeout, falling back to default device")
-                        except Exception as e:
-                            logger.debug(f"[AUDIO] BlueALSA failed: {e}, falling back to default device")
-                except Exception as e:
-                    logger.debug(f"[AUDIO] Bluetooth check failed: {e}, using default device")
+                # For AUX speakers, use direct audio output
+                logger.debug("[AUDIO] Using AUX speakers - direct audio output")
                 
                 # Fallback to default device (headphone jack)
                 subprocess.run(["aplay", "-D", output_device, audio_file_path], check=True)

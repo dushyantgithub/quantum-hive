@@ -13,6 +13,19 @@ import numpy as np
 from pathlib import Path
 from ..utils.config import STT_SETTINGS, AUDIO_SETTINGS
 
+try:
+    from scipy.signal import resample
+    SCIPY_AVAILABLE = True
+except ImportError:
+    try:
+        import resampy
+        RESAMPY_AVAILABLE = True
+        SCIPY_AVAILABLE = False
+    except ImportError:
+        SCIPY_AVAILABLE = False
+        RESAMPY_AVAILABLE = False
+        print("Warning: Neither scipy nor resampy available. Real-time downsampling disabled.")
+
 logger = logging.getLogger(__name__)
 
 class WhisperSTTEngine:
@@ -27,7 +40,8 @@ class WhisperSTTEngine:
                              For Raspberry Pi, use "tiny" or "base" for best performance
         """
         self.model_size = model_size
-        self.sample_rate = AUDIO_SETTINGS["sample_rate"]
+        self.sample_rate = AUDIO_SETTINGS["sample_rate"]  # Input sample rate (44100Hz)
+        self.target_sample_rate = STT_SETTINGS.get("downsample_target", 16000)  # Target sample rate (16000Hz)
         self.chunk_size = AUDIO_SETTINGS["chunk_size"]
         self.channels = AUDIO_SETTINGS["channels"]
         self.format = pyaudio.paInt16
@@ -36,6 +50,12 @@ class WhisperSTTEngine:
         self.silence_threshold = STT_SETTINGS["silence_threshold"]
         self.silence_duration = STT_SETTINGS["silence_duration"]
         self.min_audio_duration = STT_SETTINGS["min_audio_duration"]
+        
+        # Calculate downsampling ratio
+        self.downsample_ratio = self.sample_rate / self.target_sample_rate
+        self.target_chunk_size = int(self.chunk_size / self.downsample_ratio)
+        
+        logger.info(f"Audio downsampling: {self.sample_rate}Hz -> {self.target_sample_rate}Hz (ratio: {self.downsample_ratio:.2f})")
         
         # Initialize PyAudio
         self.audio = pyaudio.PyAudio()
@@ -55,6 +75,39 @@ class WhisperSTTEngine:
         except Exception as e:
             logger.error(f"Failed to load Whisper model: {e}")
             raise
+    
+    def _downsample_audio(self, audio_data):
+        """
+        Downsample audio data from input sample rate to target sample rate
+        
+        Args:
+            audio_data (np.ndarray): Audio data at input sample rate
+            
+        Returns:
+            np.ndarray: Downsampled audio data at target sample rate
+        """
+        if self.sample_rate == self.target_sample_rate:
+            return audio_data
+        
+        try:
+            if SCIPY_AVAILABLE:
+                # Use scipy for downsampling
+                target_length = int(len(audio_data) / self.downsample_ratio)
+                downsampled = resample(audio_data, target_length)
+                return downsampled.astype(np.int16)
+            elif RESAMPY_AVAILABLE:
+                # Use resampy for downsampling
+                downsampled = resampy.resample(audio_data.astype(np.float32), 
+                                             self.sample_rate, 
+                                             self.target_sample_rate)
+                return (downsampled * 32767).astype(np.int16)
+            else:
+                # Fallback: simple decimation (not ideal but functional)
+                step = int(self.downsample_ratio)
+                return audio_data[::step]
+        except Exception as e:
+            logger.warning(f"Downsampling failed: {e}, using original audio")
+            return audio_data
     
     def _record_audio(self, timeout=None, min_record_time=3.0):
         """
@@ -86,6 +139,7 @@ class WhisperSTTEngine:
             self.stream = self.audio.open(**open_kwargs)
             
             frames = []
+            downsampled_frames = []  # Store downsampled audio for processing
             silent_chunks = 0
             silent_threshold = int(self.silence_duration * self.sample_rate / self.chunk_size)
             min_chunks = int(max(self.min_audio_duration, min_record_time) * self.sample_rate / self.chunk_size)
@@ -104,9 +158,13 @@ class WhisperSTTEngine:
                 data = self.stream.read(self.chunk_size, exception_on_overflow=False)
                 frames.append(data)
                 
-                # Convert to numpy array for silence detection
+                # Convert to numpy array and downsample for processing
                 audio_data = np.frombuffer(data, dtype=np.int16)
-                volume = np.sqrt(np.mean(audio_data**2))
+                downsampled_audio = self._downsample_audio(audio_data)
+                downsampled_frames.append(downsampled_audio.tobytes())
+                
+                # Use downsampled audio for silence detection (more accurate)
+                volume = np.sqrt(np.mean(downsampled_audio**2))
                 
                 # Check for silence
                 if volume < self.silence_threshold:
@@ -126,7 +184,12 @@ class WhisperSTTEngine:
             self.stream.close()
             self.stream = None
             
-            return b''.join(frames)
+            # Return downsampled audio for better Whisper processing
+            if downsampled_frames:
+                logger.info(f"Recorded {len(downsampled_frames)} downsampled chunks at {self.target_sample_rate}Hz")
+                return b''.join(downsampled_frames)
+            else:
+                return b''.join(frames)
             
         except Exception as e:
             logger.error(f"Error recording audio: {e}")
@@ -151,11 +214,11 @@ class WhisperSTTEngine:
             temp_path = temp_file.name
             temp_file.close()
             
-            # Save as WAV file
+            # Save as WAV file with target sample rate
             with wave.open(temp_path, 'wb') as wav_file:
                 wav_file.setnchannels(self.channels)
                 wav_file.setsampwidth(self.audio.get_sample_size(self.format))
-                wav_file.setframerate(self.sample_rate)
+                wav_file.setframerate(self.target_sample_rate)  # Use downsampled rate
                 wav_file.writeframes(audio_data)
             
             return temp_path

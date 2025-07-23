@@ -28,17 +28,18 @@ STT_SETTINGS = {
     "engine": "whisper",  # Only Whisper is supported
     "whisper_model": "base",  # Options: "tiny", "base", "small", "medium", "large"
     "language": "en-us",
-    "timeout": 5.0,
-    "silence_threshold": 500,
-    "silence_duration": 3.0,
-    "min_audio_duration": 3.0
+    "timeout": 15.0,  # Increased timeout for better speech detection
+    "silence_threshold": 300,  # Lower threshold for better speech detection
+    "silence_duration": 2.0,  # Reduced silence duration
+    "min_audio_duration": 1.0,  # Reduced minimum duration
+    "downsample_target": 16000  # Target sample rate after downsampling
 }
 
 # Text-to-Speech settings
 TTS_SETTINGS = {
     "engine": "coqui",  # Only Coqui TTS is supported
-    "voice": "tts_models/en/ljspeech/tacotron2-DDC",  # Lightweight English model
-    "rate": 16000,  # Lower sample rate for Pi
+    "voice": "tts_models/en/ljspeech/fast_pitch",  # Much faster model
+    "rate": 16000,  # Lower sample rate for faster processing
     "volume": 0.8
 }
 
