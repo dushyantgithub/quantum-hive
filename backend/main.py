@@ -65,10 +65,9 @@ class QuantumHive:
             self.stt_engine = WhisperSTTEngine(model_size=STT_SETTINGS["whisper_model"])
             logger.info("Initializing Coqui TTS engine...")
             self.tts_engine = TTSEngine(engine_type="coqui")
-            logger.info("Initializing TinyLlama AI engine...")
-            self.ai_engine = TinyLlamaTextAIEngine()
             logger.info("Initializing Google Home controller...")
             self.google_home = GoogleHomeController()
+            # TinyLlama will be lazy-loaded when Advance mode is first used
             self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
             self.conversation_history = self._load_recent_history()
             # If any messages are missing embeddings, add them
@@ -234,6 +233,23 @@ class QuantumHive:
         self.tts_engine.speak(default_msg)
         return "advance"
 
+    def _ensure_ai_engine_loaded(self):
+        """Lazy load TinyLlama AI engine when needed"""
+        if self.ai_engine is None:
+            print("🧠 **Loading AI Engine** - Please wait while I initialize the advanced conversation system...")
+            logger.info("Lazy loading TinyLlama AI engine...")
+            self.tts_engine.speak("Loading advanced AI system, Master. This will take a moment.")
+            
+            try:
+                self.ai_engine = TinyLlamaTextAIEngine()
+                print("✅ **AI Engine Ready** - Advanced conversation mode is now available")
+                logger.info("TinyLlama AI engine loaded successfully")
+                self.tts_engine.speak("Advanced AI system loaded successfully, Master. I'm ready for intelligent conversation.")
+            except Exception as e:
+                logger.error(f"Failed to load TinyLlama AI engine: {e}")
+                self.tts_engine.speak("Sorry Master, I encountered an error loading the advanced AI system. Please try again.")
+                raise
+
     def _handle_home_mode(self):
         """Handle Home mode - Smart home device control"""
         print("\n🏠 **Home Mode Active** - Ready for smart home commands")
@@ -326,8 +342,11 @@ class QuantumHive:
         """Handle Advance mode - AI conversation with TinyLlama"""
         print("\n🧠 **Advance Mode Active** - Ready for intelligent conversation")
         logger.info("Entering Advance mode")
-        logger.info("Wake word detected. Listening for speech...")
         
+        # Ensure AI engine is loaded (lazy loading)
+        self._ensure_ai_engine_loaded()
+        
+        logger.info("Wake word detected. Listening for speech...")
         user_input = self.stt_engine.listen_for_speech(timeout=30.0, min_record_time=3.0)
         
         if user_input:
@@ -342,15 +361,21 @@ class QuantumHive:
                 
             if self._is_memory_search_command(user_input) and last_user_input:
                 logger.info("Memory search command detected.")
-                results = self.search_memory(last_user_input, top_n=1)
-                if results:
-                    mem = results[0]
-                    response = f"You said: {mem['user']}. I replied: {mem['ai']}"
-                else:
-                    response = "I don't remember anything relevant from the last week."
-                print(f"🤖 **Memory Search Result:** {response}")
-                self.tts_engine.speak(response)
-                return last_user_input
+                try:
+                    results = self.search_memory(last_user_input, top_n=1)
+                    if results:
+                        mem = results[0]
+                        response = f"You said: {mem['user']}. I replied: {mem['ai']}"
+                    else:
+                        response = "I don't remember anything relevant from the last week."
+                    print(f"🤖 **Memory Search Result:** {response}")
+                    self.tts_engine.speak(response)
+                    return last_user_input
+                except Exception as e:
+                    logger.error(f"Memory search failed: {e}")
+                    response = "Sorry Master, I had trouble searching my memory."
+                    self.tts_engine.speak(response)
+                    return last_user_input
                 
             logger.info("Generating AI response...")
             # Pass recent history to TinyLlama

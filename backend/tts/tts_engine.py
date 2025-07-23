@@ -112,19 +112,22 @@ class TTSEngine:
                     # First try Bluetooth if available
                     import subprocess as sp
                     result = sp.run(["bluetoothctl", "info", "4C:72:74:B6:4B:2F"], 
-                                  capture_output=True, text=True)
+                                  capture_output=True, text=True, timeout=3)
                     if "Connected: yes" in result.stdout:
                         logger.debug("[AUDIO] Bluetooth speaker detected, trying BlueALSA...")
-                        # Try Bluetooth audio first
+                        # Try Bluetooth audio first with proper parameters
                         try:
-                            subprocess.run(["aplay", "-D", "bluealsa", audio_file_path], 
-                                         check=True, timeout=10)
+                            # Use BlueALSA with correct sample rate and channels
+                            subprocess.run(["aplay", "-D", "bluealsa", "-r", "22050", "-c", "1", audio_file_path], 
+                                         check=True, timeout=15)
                             logger.info(f"Successfully played audio via Bluetooth: {audio_file_path}")
                             return
-                        except:
-                            logger.debug("[AUDIO] BlueALSA failed, falling back to default device")
-                except:
-                    logger.debug("[AUDIO] Bluetooth check failed, using default device")
+                        except subprocess.TimeoutExpired:
+                            logger.warning("[AUDIO] Bluetooth playback timeout, falling back to default device")
+                        except Exception as e:
+                            logger.debug(f"[AUDIO] BlueALSA failed: {e}, falling back to default device")
+                except Exception as e:
+                    logger.debug(f"[AUDIO] Bluetooth check failed: {e}, using default device")
                 
                 # Fallback to default device (headphone jack)
                 subprocess.run(["aplay", "-D", output_device, audio_file_path], check=True)
